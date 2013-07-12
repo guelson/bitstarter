@@ -24,6 +24,8 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var restler = require('restler');
+var temp = require('temp');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
 
@@ -61,14 +63,38 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var generateTempFileForUrl = function(url)
+{    
+    restler.get(url).on('complete', function(data){        
+        var tempFile = temp.openSync({prefix: "url", suffix: ".tmp.html"} );
+        fs.write(tempFile.fd, data );
+        processCheck(tempFile.path);
+    });    
+}
+
+var processCheck = function(htmlUrn)
+{
+    var checkJson = checkHtmlFile(htmlUrn, program.checks);
+    var outJson = JSON.stringify(checkJson, null, 4);
+    console.log(outJson);
+}
+
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-f, --file <html_file>', 'Path to index.html')
+        .option('-u, --url <url>', 'url to the html file')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    
+    if( program.file)
+    {
+        processCheck(program.file);
+    }
+    else
+    {
+        generateTempFileForUrl( program.url );
+    }
+    
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
